@@ -1,0 +1,264 @@
+<?php
+/**
+ * @package AlexPlugin
+ */
+/*
+Plugin name: Alex Plugin
+Plugin URL: [put url here]
+Description: Another attempt to do a custom plugin in order to learn
+Version: 1.0.0
+Autor: Alex
+ */
+function ap_custom_vehicle_post_type(): void
+{
+    $labels = array(
+        'name' => 'Vehicles',
+        'singular_name' => 'Vehicle',
+        'menu_name' => 'Vehicles',
+        'add_new' => 'Add New',
+        'add_new_item' => 'Add New Vehicle',
+        'edit_item' => 'Edit Vehicle',
+        'new_item' => 'New Vehicle',
+        'view_item' => 'View Vehicle',
+        'search_items' => 'Search Vehicles',
+        'not_found' => 'No Vehicles found',
+        'not_found_in_trash' => 'No Vehicles found in Trash',
+    );
+
+    $args = array(
+        'labels' => $labels,
+        'public' => true,
+        'publicly_queryable' => true,
+        'show_ui' => true,
+        'show_in_menu' => true,
+        'query_var' => true,
+        'rewrite' => array('slug' => 'vehicle'),
+        'capability_type' => 'post',
+        'has_archive' => true,
+        'hierarchical' => false,
+        'menu_position' => null,
+        'supports' => array('title', 'editor', 'thumbnail', 'custom-fields'),
+    );
+
+    register_post_type('vehicle', $args);
+}
+add_action('init', 'ap_custom_vehicle_post_type');
+function ap_vehicle_custom_fields_meta_box(): void
+
+{
+    add_meta_box(
+        'ap_vehicle_custom_fields_meta_box',
+        'Vehicle Custom Fields',
+        'ap_vehicle_custom_fields_meta_box_callback',
+        'home',
+        'normal',
+        'low'
+    );
+}
+
+function ap_vehicle_custom_fields_meta_box_callback($post)
+
+{
+    $fuel_value = get_post_meta($post->ID, 'fuel', true);
+    $manufacturer_value = get_post_meta($post->ID, 'manufacturer', true);
+    $color_value = get_post_meta($post->ID, 'color', true);
+    $capacity = get_post_meta($post->ID, 'capacity', true);
+
+    ?>
+    <table class="form-table">
+        <tr>
+            <th><label for="fuel_field">Fuel:</label></th>
+            <td><input type="text" id="fuel_field" name="fuel_field" value="<?php echo esc_attr($fuel_value); ?>" /></td>
+        </tr>
+        <tr>
+            <th><label for="manufacturer_field">Manufacturer:</label></th>
+            <td><input type="text" id="manufacturer_field" name="manufacturer_field" value="<?php echo esc_attr($manufacturer_value); ?>" /></td>
+        </tr>
+        <tr>
+            <th><label for="color_field">Color:</label></th>
+            <td><input type="text" id="color_field" name="color_field" value="<?php echo esc_attr($color_value); ?>" /></td>
+        </tr>
+        <tr>
+            <th><label for="capacity">Color:</label></th>
+            <td><input type="text" id="capacity" name="capacity" value="<?php echo esc_attr($capacity); ?>" /></td>
+        </tr>
+    </table>
+    <?php
+}
+function ap_vehicle_save_custom_fields($post_id)
+
+{
+    if (wp_is_post_autosave($post_id) || wp_is_post_revision($post_id)) {
+        return;
+    }
+
+    if (isset($_POST['fuel_field'])) {
+        $fuel_value = sanitize_text_field($_POST['fuel_field']);
+        update_post_meta($post_id, 'fuel', $fuel_value);
+    }
+
+    if (isset($_POST['manufacturer_field'])) {
+        $manufacturer_value = sanitize_text_field($_POST['manufacturer_field']);
+        update_post_meta($post_id, 'manufacturer', $manufacturer_value);
+    }
+
+    if (isset($_POST['color_field'])) {
+        $color_value = sanitize_text_field($_POST['color_field']);
+        update_post_meta($post_id, 'color', $color_value);
+    }
+    if (isset($_POST['capacity'])) {
+        $capacity = sanitize_text_field($_POST['capacity']);
+        update_post_meta($post_id, 'color', $capacity);
+    }
+}
+
+function ap_vehiclelist_shortcode($atts, $capacity)
+{
+    $args = shortcode_atts(
+        array(
+            'fuel' => '',
+            'manufacturer' => '',
+            'color' => '',
+            'capacity' => '',
+            'showfilters' => 1,
+        ),
+        $atts
+    );
+    if (isset($_GET['manufacturer'])) {
+        $args['manufacturer'] = sanitize_text_field($_GET['manufacturer']);
+    }
+
+    if (isset($_GET['fuel'])) {
+        $args['fuel'] = sanitize_text_field($_GET['fuel']);
+    }
+
+    if (isset($_GET['color'])) {
+        $args['color'] = sanitize_text_field($_GET['color']);
+    }
+    if (isset($_GET['capacity'])) {
+        $args['capacity'] = sanitize_text_field($_GET['capacity']);
+    }
+
+    $vehicle_query_args = array(
+        'post_type' => 'vehicle',
+        'posts_per_page' => -1,
+        'meta_query' => array(),
+    );
+
+    if (!empty($args['manufacturer'])) {
+        $vehicle_query_args['meta_query'][] = array(
+            'key' => 'manufacturer',
+            'value' => $args['manufacturer'],
+            'compare' => 'LIKE',
+        );
+    }
+
+    if (!empty($args['fuel'])) {
+        $vehicle_query_args['meta_query'][] = array(
+            'key' => 'fuel',
+            'value' => $args['fuel'],
+            'compare' => 'LIKE',
+        );
+    }
+    if (!empty($args['color'])) {
+        $vehicle_query_args['meta_query'][] = array(
+            'key' => 'color',
+            'value' => $args['color'],
+            'compare' => 'LIKE',
+        );
+    }
+    if (!empty($args['capacity'])) {
+        $vehicle_query_args['meta_query'][] = array(
+                'key' => 'capacity',
+                'value' => $args['capacity'],
+                'compare' => 'LIKE',
+            );
+    }
+
+    $vehicle_query = new WP_Query($vehicle_query_args);
+    $output = '';
+
+    if ($args['showfilters'] == 1) {
+        $output .= '<form id="vehicle-filter-form" method="get" action="' . esc_url(home_url('/')) . '">';
+        $output .= '<label for="manufacturer">Manufacturer:</label>';
+        $output .= '<select name="manufacturer" id="manufacturer">';
+        $output .= '<option value="">All</option>';
+        $output .= '<option value="Opel" ' . selected($args['manufacturer'], 'Opel', false) . '>Opel</option>';
+        $output .= '<option value="Renault" ' . selected($args['manufacturer'], 'Renault', false) . '>Renault</option>';
+        $output .= '<option value="Dacia" ' . selected($args['manufacturer'], 'Dacia', false) . '>Dacia</option>';
+        $output .= '<option value="Mercedes" ' . selected($args['manufacturer'], 'Mercedes', false) . '>Mercedes</option>';
+        $output .= '</select>';
+
+        $output .= '<label for="fuel">Fuel:</label>';
+        $output .= '<select name="fuel" id="fuel">';
+        $output .= '<option value="">All</option>';
+        $output .= '<option value="Gasoline" ' . selected($args['fuel'], 'Gasoline', false) . '>Gasoline</option>';
+        $output .= '<option value="Diesel" ' . selected($args['fuel'], 'Diesel', false) . '>Diesel</option>';
+        $output .= '<option value="Electric" ' . selected($args['fuel'], 'Electric', false) . '>Electric</option>';
+        $output .= '<option value="GPL" ' . selected($args['fuel'], 'GPL', false) . '>GPL</option>';
+        $output .= '</select>';
+
+        $output .= '<label for="color">Color:</label>';
+        $output .= '<select name="color" id="color">';
+        $output .= '<option value="">All</option>';
+        $output .= '<option value="Red" ' . selected($args['color'], 'Red', false) . '>Red</option>';
+        $output .= '<option value="Blue" ' . selected($args['color'], 'Blue', false) . '>Blue</option>';
+        $output .= '<option value="Green" ' . selected($args['color'], 'Green', false) . '>Green</option>';
+        $output .= '<option value="Yellow" ' . selected($args['color'], 'Yellow', false) . '>Yellow</option>';
+        $output .= '<option value="Black" ' . selected($args['color'], 'Black', false) . '>Black</option>';
+        $output .= '<option value="White" ' . selected($args['color'], 'White', false) . '>White</option>';
+        $output .= '</select>';
+
+        $output .= '<label for="capacity">Color:</label>';
+        $output .= '<select name="capacity" id="capacity">';
+        $output .= '<option value="">All</option>';
+        $output .= '<option value="3 doors" ' . selected($args['capacity'], '3 doors', false) . '>3 doors</option>';
+        $output .= '<option value="2 doors" ' . selected($args['capacity'], '4 doors', false) . '>4 doors</option>';
+        $output .= '<option value="5 doors" ' . selected($args['capacity'], '5 doors', false) . '>5 doors</option>';
+        $output .= '</select>';
+
+        $output .= '<input type="submit" value="Filter">';
+        $output .= '</form>';
+    }
+
+    if ($vehicle_query->have_posts()) {
+        $output .= '<table class="vehicle-list-table">';
+        $output .= '<tr>';
+        $output .= '<th>Vehicle</th>';
+        $output .= '<th>Manufacturer</th>';
+        $output .= '<th>Fuel</th>';
+        $output .= '<th>Color</th>';
+        $output .= '<th>Capacity</th>';
+        $output .= '</tr>';
+
+        while ($vehicle_query->have_posts()) {
+            $vehicle_query->the_post();
+
+            $vehicle_name = esc_html(get_the_title());
+            $manufacturer = esc_html(get_post_meta(get_the_ID(), 'manufacturer', true));
+            $fuel = esc_html(get_post_meta(get_the_ID(), 'fuel', true));
+            $color = esc_html(get_post_meta(get_the_ID(), 'color', true));
+
+            $output .= '<div class="vehicle-container">';
+            $output .= '<div class="detail-cell vehicle-name-cell">' . $vehicle_name . '</div>';
+            $output .= '<div class="vehicle-details">';
+            $output .= '<div class="detail-cell">' . $manufacturer . '</div>';
+            $output .= '<div class="detail-cell">' . $fuel . '</div>';
+            $output .= '<div class="detail-cell">' . $color . '</div>';
+            $output .= '<div class="detail-cell">' . $capacity . '</div>';
+            $output .= '</div>';
+            $output .= '</div>';
+        }
+
+
+        wp_reset_postdata();
+    } else {
+        $output .= 'No Vehicle posts found.';
+    }
+    return $output;
+}
+
+add_action('add_meta_boxes', 'ap_vehicle_custom_fields_meta_box');
+add_shortcode('vehiclelist', 'ap_vehiclelist_shortcode');
+add_action('save_post', 'ap_vehicle_save_custom_fields');
+add_shortcode('vehiclelist', 'ap_vehiclelist_shortcode');
